@@ -60,7 +60,8 @@
 		
 		// Directive
 		function MomentPickerDirective(timeout, sce, compile, window, momentPickerProvider) {
-			this.restrict = 'A',
+			this.restrict = 'A';
+			this.require = 'ngModel';
 			this.scope = {
 				model:     '=momentPicker',
 				locale:    '@?',
@@ -83,7 +84,7 @@
 			momentPicker = momentPickerProvider;
 		}
 		MomentPickerDirective.prototype.$inject = ['$timeout', '$sce', '$compile', '$window', 'momentPicker'];
-		MomentPickerDirective.prototype.link = function ($scope, $element, $attrs) {
+		MomentPickerDirective.prototype.link = function ($scope, $element, $attrs, ngModelCtrl, $transclude) {
 			$scope.template = (
 				'<div class="moment-picker-container {{view.selected}}-view" ' +
 					'ng-show="view.isOpen && !disabled" ng-class="{\'moment-picker-disabled\': disabled, \'open\': view.isOpen}">' +
@@ -160,7 +161,7 @@
 			// utilities
 			$scope.momentToDate  = function (value) { return $scope.isValidMoment(value) ? value.clone().toDate() : undefined; };
 			$scope.valueUpdate   = function () { if (!$scope.disabled) $scope.value = $scope.momentToDate($scope.valueMoment); };
-			$scope.isValidMoment = function (value) { return angular.isDefined(value) && value.isValid(); };
+			$scope.isValidMoment = function (value) { return moment.isMoment(value) && value.isValid(); };
 			$scope.limits = {
 				isAfterOrEqualMin: function (value, precision) {
 					return !angular.isDefined($scope.minDateMoment) || value.isAfter($scope.minDateMoment, precision) || value.isSame($scope.minDateMoment, precision);
@@ -593,7 +594,7 @@
 			
 			// creation
 			$scope.picker = angular.element('<span class="moment-picker"></span>');
-			$element.after($scope.picker);
+			angular.element(document.body).append($scope.picker);
 			$scope.contents = $element.addClass('moment-picker-contents').removeAttr('moment-picker');
 			$scope.container = $compile($scope.template)($scope);
 			$scope.picker.append($scope.contents);
@@ -604,10 +605,56 @@
 			$scope.input.attr('tabindex', 0);
 			
 			// initialization
+			ngModelCtrl.$options = angular.extend({
+				updateOn: 'blur'
+			}, ngModelCtrl.$options);
+
+			// if ( !$scope.isValidMoment(ngModelCtrl.$modelValue) ){
+			// 	ngModelCtrl.$setViewValue(moment($scope.model, $scope.format, $scope.locale));
+			// }
+
+			ngModelCtrl.$parsers.push(function(viewValue){
+			  var modelValue = moment(viewValue, $scope.format);
+			  if ( modelValue.isValid() ){
+				return modelValue
+			  }
+			});
+
+			ngModelCtrl.$formatters.push(function(modelValue){
+			  if ( moment.isMoment(modelValue) ){
+				return modelValue.format($scope.format);
+			  }
+			});
+
+			// Set limits and validation
 			$scope.views.detectMinMax();
 			$scope.limits.checkView();
 			
 			// properties listeners
+			$scope.$watch(function(){
+				if ( moment.isMoment(ngModelCtrl.$modelValue) ){
+					return ngModelCtrl.$modelValue.unix();
+				}
+			}, function(unixValue){
+				var formatters = ngModelCtrl.$formatters,
+					idx = formatters.length;
+
+				var viewValue = ngModelCtrl.$modelValue;
+
+				while (idx--) {
+					viewValue = formatters[idx](viewValue);
+				}
+
+				if (ngModelCtrl.$viewValue !== viewValue) {
+					ngModelCtrl.$viewValue = viewValue;
+					ngModelCtrl.$render();
+				}
+				//TODO: remove this
+				if ( $scope.model !== viewValue ){
+					$scope.model = viewValue;
+				}
+			});
+
 			$scope.$watch('model', function (model) {
 				if (angular.isDefined(model)) {
 					$scope.valueMoment = moment(model, $scope.format, $scope.locale);
@@ -622,13 +669,15 @@
 				$scope.limits.checkValue();
 			});
 			$scope.$watch('value', function () {
-				if (!angular.isDefined($scope.valueMoment)) return;
+				if ( angular.isUndefined($scope.valueMoment) ) return;
 				var oldValue = $scope.model,
 					newValue = $scope.valueMoment.format($scope.format);
 				if (newValue != oldValue)
 					$timeout(function () {
 						$scope.view.update($scope.view.moment = $scope.valueMoment.clone());
 						$scope.model = newValue;
+						ngModelCtrl.$setViewValue(newValue);
+						ngModelCtrl.$commitViewValue();
 						if (angular.isFunction($scope.change))
 							$timeout(function () {
 								$scope.change({ newValue: newValue, oldValue: oldValue });
