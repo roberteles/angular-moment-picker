@@ -41,7 +41,7 @@ module.exports = function(grunt) {
 		header: {
 			main: {
 				options: {
-					text: '/*! Angular Moment Picker - v<%= pkg.version %> - https://github.com/indrimuska/angular-moment-picker - (c) 2015 Indri Muska - MIT */'
+					text: '/*! Angular Moment Picker - v<%= pkg.version %> - https://github.com/indrimuska/angular-moment-picker - (c) 2016 Nate Dudenhoeffer - MIT */'
 				},
 				files: {
 					'dist/angular-moment-picker.js': 'dist/angular-moment-picker.js',

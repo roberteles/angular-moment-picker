@@ -84,7 +84,7 @@
 			momentPicker = momentPickerProvider;
 		}
 		MomentPickerDirective.prototype.$inject = ['$timeout', '$sce', '$compile', '$window', '$parse', 'momentPicker'];
-		MomentPickerDirective.prototype.link = function ($scope, $element, $attrs, ngModelCtrl, $transclude) {
+		MomentPickerDirective.prototype.link = function ($scope, $element, $attrs, ngModelCtrl) {
 			$scope.template = (
 				'<div class="moment-picker-container {{view.selected}}-view" ' +
 					'ng-show="view.isOpen && !disabled" ng-class="{\'moment-picker-disabled\': disabled, \'open\': view.isOpen}">' +
@@ -605,7 +605,7 @@
 			$scope.input.attr('tabindex', 0);
 			
 			// initialization
-			function runFormatters(){
+			function runFormatters() {
 				// Force set the view value using formatters (https://github.com/angular/angular.js/issues/3407)
 				var formatters = ngModelCtrl.$formatters,
 					idx = formatters.length;
@@ -620,7 +620,7 @@
 					ngModelCtrl.$viewValue = viewValue;
 					ngModelCtrl.$render();
 				}
-			};
+			}
 
 			var modelSetter = $parse($attrs.ngModel).assign;
 
@@ -629,17 +629,17 @@
 			}, ngModelCtrl.$options);
 
 
-			ngModelCtrl.$parsers.push(function(viewValue){
-			  var modelValue = moment(viewValue, $scope.format);
-			  if ( modelValue.isValid() ){
-				return modelValue
-			  }
+			ngModelCtrl.$parsers.push(function (viewValue) {
+				var modelValue = moment(viewValue, $scope.format);
+				if ( modelValue.isValid() ) {
+					return modelValue;
+				}
 			});
 
-			ngModelCtrl.$formatters.push(function(modelValue){
-			  if ( moment.isMoment(modelValue) ){
-				return modelValue.format($scope.format);
-			  }
+			ngModelCtrl.$formatters.push(function (modelValue) {
+				if ( moment.isMoment(modelValue) ) {
+					return modelValue.format($scope.format);
+				}
 			});
 
 			// Set limits and validation
@@ -647,13 +647,13 @@
 			$scope.limits.checkView();
 			
 			// properties listeners
-			$scope.$watch(function(){
-				if ( moment.isMoment(ngModelCtrl.$modelValue) ){
+			$scope.$watch(function () {
+				if ( moment.isMoment(ngModelCtrl.$modelValue) ) {
 					return ngModelCtrl.$modelValue.unix();
 				}
-			}, function(unixValue){
-				if ( $scope.isValidMoment(ngModelCtrl.$modelValue) ){
-					$scope.valueMoment = ngModelCtrl.$modelValue.clone()
+			}, function () {
+				if ( $scope.isValidMoment(ngModelCtrl.$modelValue) ) {
+					$scope.valueMoment = ngModelCtrl.$modelValue.clone();
 					$scope.view.moment = $scope.valueMoment.clone();
 					$scope.view.update();
 				}

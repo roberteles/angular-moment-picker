@@ -1,4 +1,4 @@
-/*! Angular Moment Picker - v0.6.2 - https://github.com/indrimuska/angular-moment-picker - (c) 2015 Indri Muska - MIT */
+/*! Angular Moment Picker - v0.6.2fork - https://github.com/indrimuska/angular-moment-picker - (c) 2016 Nate Dudenhoeffer - MIT */
 (function (angular) {
 	'use strict';
 	
@@ -39,7 +39,7 @@
 		return momentPickerProvider;
 	})();
 	
-	var $timeout, $sce, $compile, $window, momentPicker;
+	var $timeout, $sce, $compile, $window, $parse, momentPicker;
 	
 	var MomentPickerDirective = (function () {
 		
@@ -60,10 +60,10 @@
 		}
 		
 		// Directive
-		function MomentPickerDirective(timeout, sce, compile, window, momentPickerProvider) {
-			this.restrict = 'A',
+		function MomentPickerDirective(timeout, sce, compile, window, parse, momentPickerProvider) {
+			this.restrict = 'A';
+			this.require = 'ngModel';
 			this.scope = {
-				model:     '=momentPicker',
 				locale:    '@?',
 				format:    '@?',
 				minView:   '@?',
@@ -81,10 +81,11 @@
 			$sce         = sce;
 			$compile     = compile;
 			$window      = window;
+			$parse		 = parse;
 			momentPicker = momentPickerProvider;
 		}
-		MomentPickerDirective.prototype.$inject = ['$timeout', '$sce', '$compile', '$window', 'momentPicker'];
-		MomentPickerDirective.prototype.link = function ($scope, $element, $attrs) {
+		MomentPickerDirective.prototype.$inject = ['$timeout', '$sce', '$compile', '$window', '$parse', 'momentPicker'];
+		MomentPickerDirective.prototype.link = function ($scope, $element, $attrs, ngModelCtrl) {
 			$scope.template = (
 				'<div class="moment-picker-container {{view.selected}}-view" ' +
 					'ng-show="view.isOpen && !disabled" ng-class="{\'moment-picker-disabled\': disabled, \'open\': view.isOpen}">' +
@@ -161,7 +162,7 @@
 			// utilities
 			$scope.momentToDate  = function (value) { return $scope.isValidMoment(value) ? value.clone().toDate() : undefined; };
 			$scope.valueUpdate   = function () { if (!$scope.disabled) $scope.value = $scope.momentToDate($scope.valueMoment); };
-			$scope.isValidMoment = function (value) { return angular.isDefined(value) && value.isValid(); };
+			$scope.isValidMoment = function (value) { return moment.isMoment(value) && value.isValid(); };
 			$scope.limits = {
 				isAfterOrEqualMin: function (value, precision) {
 					return !angular.isDefined($scope.minDateMoment) || value.isAfter($scope.minDateMoment, precision) || value.isSame($scope.minDateMoment, precision);
@@ -594,7 +595,7 @@
 			
 			// creation
 			$scope.picker = angular.element('<span class="moment-picker"></span>');
-			$element.after($scope.picker);
+			angular.element(document.body).append($scope.picker);
 			$scope.contents = $element.addClass('moment-picker-contents').removeAttr('moment-picker');
 			$scope.container = $compile($scope.template)($scope);
 			$scope.picker.append($scope.contents);
@@ -605,34 +606,78 @@
 			$scope.input.attr('tabindex', 0);
 			
 			// initialization
+			function runFormatters() {
+				// Force set the view value using formatters (https://github.com/angular/angular.js/issues/3407)
+				var formatters = ngModelCtrl.$formatters,
+					idx = formatters.length;
+
+				var viewValue = ngModelCtrl.$modelValue;
+
+				while (idx--) {
+					viewValue = formatters[idx](viewValue);
+				}
+
+				if (ngModelCtrl.$viewValue !== viewValue) {
+					ngModelCtrl.$viewValue = viewValue;
+					ngModelCtrl.$render();
+				}
+			}
+
+			var modelSetter = $parse($attrs.ngModel).assign;
+
+			ngModelCtrl.$options = angular.extend({
+				updateOn: 'blur'
+			}, ngModelCtrl.$options);
+
+
+			ngModelCtrl.$parsers.push(function (viewValue) {
+				var modelValue = moment(viewValue, $scope.format);
+				if ( modelValue.isValid() ) {
+					return modelValue;
+				}
+			});
+
+			ngModelCtrl.$formatters.push(function (modelValue) {
+				if ( moment.isMoment(modelValue) ) {
+					return modelValue.format($scope.format);
+				}
+			});
+
+			// Set limits and validation
 			$scope.views.detectMinMax();
 			$scope.limits.checkView();
 			
 			// properties listeners
-			$scope.$watch('model', function (model) {
-				if (angular.isDefined(model)) {
-					$scope.valueMoment = moment(model, $scope.format, $scope.locale);
-					if (!$scope.valueMoment.isValid())
-						$scope.valueMoment = undefined;
-					else {
-						$scope.view.moment = $scope.valueMoment.clone();
-						$scope.view.update();
-					}
+			$scope.$watch(function () {
+				if ( moment.isMoment(ngModelCtrl.$modelValue) ) {
+					return ngModelCtrl.$modelValue.unix();
 				}
+			}, function () {
+				if ( $scope.isValidMoment(ngModelCtrl.$modelValue) ) {
+					$scope.valueMoment = ngModelCtrl.$modelValue.clone();
+					$scope.view.moment = $scope.valueMoment.clone();
+					$scope.view.update();
+				}
+				else { $scope.valueMoment = undefined; }
+
 				$scope.valueUpdate($scope.valueMoment);
 				$scope.limits.checkValue();
+
+				runFormatters();
 			});
+
 			$scope.$watch('value', function () {
-				if (!angular.isDefined($scope.valueMoment)) return;
-				var oldValue = $scope.model,
-					newValue = $scope.valueMoment.format($scope.format);
-				if (newValue != oldValue)
+				if ( angular.isUndefined($scope.valueMoment) ) return;
+				var oldValue = ngModelCtrl.$modelValue;
+				if ( !$scope.valueMoment.isSame(ngModelCtrl.$modelValue) )
 					$timeout(function () {
 						$scope.view.update($scope.view.moment = $scope.valueMoment.clone());
-						$scope.model = newValue;
+						// ngModelCtrl.$modelValue = $scope.valueMoment.clone();
+						modelSetter($scope.$parent, $scope.valueMoment.clone());
+						runFormatters();
 						if (angular.isFunction($scope.change))
 							$timeout(function () {
-								$scope.change({ newValue: newValue, oldValue: oldValue });
+								$scope.change({ newValue: ngModelCtrl.$modelValue, oldValue: oldValue });
 							}, 0, false);
 					});
 			});
@@ -666,7 +711,7 @@
 			}, true);
 			$scope.$watch('locale', function (locale, previous) {
 				if (!angular.isDefined(previous) || locale == previous) return;
-				angular.forEach(['model', 'minDate', 'maxDate'], function (variable) {
+				angular.forEach(['valueMoment', 'minDate', 'maxDate'], function (variable) {
 					if (angular.isDefined($scope[variable]))
 						$scope[variable] = moment($scope[variable], $scope.format, previous).locale(locale).format($scope.format);
 				});
@@ -692,9 +737,9 @@
 			return new momentPickerProvider();
 		}])
 		.directive('momentPicker', [
-			'$timeout', '$sce', '$compile', '$window', 'momentPicker',
-			function ($timeout, $sce, $compile, $window, momentPicker) {
-				return new MomentPickerDirective($timeout, $sce, $compile, $window, momentPicker);
+			'$timeout', '$sce', '$compile', '$window', '$parse', 'momentPicker',
+			function ($timeout, $sce, $compile, $window, $parse, momentPicker) {
+				return new MomentPickerDirective($timeout, $sce, $compile, $window, $parse, momentPicker);
 			}
 		]);
 	
