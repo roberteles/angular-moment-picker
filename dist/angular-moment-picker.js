@@ -20,10 +20,15 @@
 				leftArrow:     '&larr;',
 				rightArrow:    '&rarr;',
 				yearsFormat:   'YYYY',
+				yearsHeaderFormat: 'YYYY',
 				monthsFormat:  'MMM',
+				monthsHeaderFormat: 'MMMM YYYY',
 				daysFormat:    'D',
+				daysHeaderFormat: 'LL',
 				hoursFormat:   'HH:[00]',
+				hoursHeaderFormat: 'lll',
 				secondsFormat: 'ss',
+				minuteHeaderFormat: 'lll',
 				minutesStep:   5,
 				secondsStep:   1
 			};
@@ -39,28 +44,12 @@
 		return momentPickerProvider;
 	})();
 	
-	var $timeout, $sce, $compile, $window, $parse, momentPicker;
+	var $timeout, $sce, $position, $compile, $window, $parse, momentPicker;
 	
 	var MomentPickerDirective = (function () {
-		
-		// Utility
-		function getOffset(element) {
-			var docElem, win, rect, doc;
-			if (!element) return;
-			if (!element.getClientRects().length) return { top: 0, left: 0 };
-			rect = element.getBoundingClientRect();
-			if (!rect.width && !rect.height) return rect;
-			doc = element.ownerDocument;
-			win = doc != null && doc === doc.window ? element : doc.nodeType === 9 && doc.defaultView;
-			docElem = doc.documentElement;
-			return {
-				top: rect.top + win.pageYOffset - docElem.clientTop,
-				left: rect.left + win.pageXOffset - docElem.clientLeft
-			};
-		}
-		
+
 		// Directive
-		function MomentPickerDirective(timeout, sce, compile, window, parse, momentPickerProvider) {
+		function MomentPickerDirective(timeout, sce, position, compile, window, parse, momentPickerProvider) {
 			this.restrict = 'A';
 			this.require = 'ngModel';
 			this.scope = {
@@ -69,9 +58,10 @@
 				minView:   '@?',
 				maxView:   '@?',
 				startView: '@?',
+				headerFormat: '@?',
 				minDate:   '=?',
 				maxDate:   '=?',
-				disabled:  '=?disable',
+				disabled:  '=?ngDisabled',
 				autoclose: '=?',
 				today:     '=?',
 				keyboard:  '=?',
@@ -79,12 +69,13 @@
 			};
 			$timeout     = timeout;
 			$sce         = sce;
+			$position    = position;
 			$compile     = compile;
 			$window      = window;
 			$parse		 = parse;
 			momentPicker = momentPickerProvider;
 		}
-		MomentPickerDirective.prototype.$inject = ['$timeout', '$sce', '$compile', '$window', '$parse', 'momentPicker'];
+		MomentPickerDirective.prototype.$inject = ['$timeout', '$sce',  '$position', '$compile', '$window', '$parse', 'momentPicker'];
 		MomentPickerDirective.prototype.link = function ($scope, $element, $attrs, ngModelCtrl) {
 			$scope.template = (
 				'<div class="moment-picker-container {{view.selected}}-view" ' +
@@ -229,26 +220,21 @@
 				toggle: function () { $scope.view.isOpen ? $scope.view.close() : $scope.view.open(); },
 				open: function () {
 					if ($scope.disabled) return;
-					
+
 					$scope.view.isOpen = true;
 					$timeout($scope.view.position, 0, false);
 				},
 				close: function () {
 					$scope.view.isOpen = false;
 					$scope.view.selected = $scope.startView;
+					$scope.input[0].blur();
 				},
 				position: function () {
-					$scope.picker.removeClass('top').removeClass('left');
-					
-					var container = $scope.container[0],
-						offset    = getOffset(container),
-						top       = offset.top - $window.pageYOffset,
-						left      = offset.left - $window.pageXOffset,
-						winWidth  = $window.innerWidth,
-						winHeight = $window.innerHeight;
-					
-					if (top + $window.pageYOffset - container.offsetHeight > 0 && top > winHeight / 2) $scope.picker.addClass('top');
-					if (left + container.offsetWidth > winWidth) $scope.picker.addClass('left');
+
+					var position = $position.positionElements($element, $scope.picker, 'bottom-left', true);
+					$scope.picker.css('top', position.top);
+					$scope.picker.css('left', position.left);
+					$scope.picker.css('position', 'absolute');
 				},
 				keydown: function (e) {
 					var view       = $scope.view.selected + 'View',
@@ -388,7 +374,7 @@
 						month.add(1, 'months');
 					});
 					// return title
-					return $scope.view.moment.format('YYYY');
+					return $scope.view.moment.format($scope.headerFormat || 'YYYY');
 				},
 				setMonth: function (month) {
 					if (!month.selectable) return;
@@ -435,7 +421,7 @@
 						$scope.monthView.weeks.push(week);
 					});
 					// return title
-					return $scope.view.moment.format('MMMM YYYY');
+					return $scope.view.moment.format($scope.headerFormat || 'MMMM YYYY');
 				},
 				setDay: function (day) {
 					if (!day.selectable) return;
@@ -472,7 +458,7 @@
 						hour.add(1, 'hours');
 					}
 					// return title
-					return $scope.view.moment.format('LL');
+					return $scope.view.moment.format($scope.headerFormat || 'LL');
 				},
 				setHour: function (hour) {
 					if (!hour.selectable) return;
@@ -514,7 +500,7 @@
 					}
 					if ($scope.keyboard) $scope.hourView.highlightClosest();
 					// return title
-					return $scope.view.moment.clone().startOf('hour').format('lll');
+					return $scope.view.moment.clone().startOf('hour').format($scope.headerFormat || 'lll');
 				},
 				setMinute: function (minute) {
 					if (!minute.selectable) return;
@@ -570,7 +556,7 @@
 					}
 					if ($scope.keyboard) $scope.minuteView.highlightClosest();
 					// return title
-					return $scope.view.moment.clone().startOf('minute').format('lll');
+					return $scope.view.moment.clone().startOf('minute').format($scope.headerFormat || 'lll');
 				},
 				setSecond: function (second) {
 					if (!second.selectable) return;
@@ -596,13 +582,12 @@
 			// creation
 			$scope.picker = angular.element('<span class="moment-picker"></span>');
 			angular.element(document.body).append($scope.picker);
-			$scope.contents = $element.addClass('moment-picker-contents').removeAttr('moment-picker');
+			// $scope.contents = $element.addClass('moment-picker-contents').removeAttr('moment-picker');
 			$scope.container = $compile($scope.template)($scope);
-			$scope.picker.append($scope.contents);
 			$scope.picker.append($scope.container);
-			$scope.input = $scope.contents[0].tagName.toLowerCase() != 'input' && $scope.contents[0].querySelectorAll('input').length > 0
-				? angular.element($scope.contents[0].querySelectorAll('input'))
-				: angular.element($scope.contents[0]);
+			$scope.input = $element[0].tagName.toLowerCase() != 'input' && $element[0].querySelectorAll('input').length > 0
+				? angular.element($element[0].querySelectorAll('input'))
+				: $element;
 			$scope.input.attr('tabindex', 0);
 			
 			// initialization
@@ -720,11 +705,22 @@
 			
 			// event listeners
 			$scope.input
-				.on('focus',   function () { if (!$scope.view.isOpen) $scope.$apply($scope.view.open); })
-				.on('blur',    function () { $timeout(function () { if ($scope.view.isOpen && document.activeElement !== $scope.input[0]) $scope.view.close(); }, 100); })
-				.on('keydown', function (e) { if ($scope.keyboard) $scope.$apply(function () { $scope.view.keydown(e); }); });
-			$scope.contents.on('click', function () { $scope.input[0].focus(); });
-			$scope.container.on('click', function () { $scope.input[0].focus(); });
+				.on('focus',   function () {
+					if (!$scope.view.isOpen) $scope.$apply($scope.view.open);
+				})
+				.on('blur',    function () {
+					$timeout(function () { if ($scope.view.isOpen && document.activeElement !== $scope.input[0]) $scope.view.close(); }, 100);
+				})
+				.on('keydown', function (e) {
+					if ($scope.keyboard) $scope.$apply(function () { $scope.view.keydown(e); });
+				});
+			$element.on('click', function () {
+				if (!$scope.view.isOpen) $scope.$apply($scope.view.open);
+				$scope.input[0].focus();
+			});
+			$scope.container.on('click', function () {
+				$scope.input[0].focus();
+			});
 			angular.element($window).on('resize scroll', $scope.view.position);
 		};
 		
@@ -732,14 +728,14 @@
 	})();
 	
 	angular
-		.module('moment-picker', [])
+		.module('moment-picker', ['ui.bootstrap'])
 		.provider('momentPicker', [function () {
 			return new momentPickerProvider();
 		}])
 		.directive('momentPicker', [
-			'$timeout', '$sce', '$compile', '$window', '$parse', 'momentPicker',
-			function ($timeout, $sce, $compile, $window, $parse, momentPicker) {
-				return new MomentPickerDirective($timeout, $sce, $compile, $window, $parse, momentPicker);
+			'$timeout', '$sce', '$position', '$compile', '$window', '$parse', 'momentPicker',
+			function ($timeout, $sce, $position, $compile, $window, $parse, momentPicker) {
+				return new MomentPickerDirective($timeout, $sce, $position, $compile, $window, $parse, momentPicker);
 			}
 		]);
 	
