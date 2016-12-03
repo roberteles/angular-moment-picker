@@ -321,7 +321,7 @@
 							winHeight = $window.innerHeight;
 
 						if (top + $window.pageYOffset - container.offsetHeight > 0 && top > winHeight / 2) {
-							if ($scope.forceDirection == null) || ($scope.forceDirection == top) {
+							if (($scope.forceDirection == null) || ($scope.forceDirection == 'top')) {
 								$scope.picker.addClass('top');
 							}
 						}

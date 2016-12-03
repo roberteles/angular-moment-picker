@@ -1,11 +1,11 @@
 {
   "name": "ng-moment-picker",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "authors": [
     "Indri Muska <indrimuska@gmail.com>",
     "Robert Eles <eleshrobert@gmail.com>"
   ],
-  "description": "Ng Moment Picker is a fork of Indri's AngularJS directive",
+  "description": "Angular Moment Picker is a fork of Indri's AngularJS directive",
   "main": [
     "dist/angular-moment-picker.min.js",
     "dist/angular-moment-picker.min.css"

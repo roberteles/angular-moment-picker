@@ -1,3 +1,4 @@
+/*! Angular Moment Picker - v0.8.3 - https://github.com/indrimuska/angular-moment-picker - (c) 2015 Indri Muska - MIT */
 (function (angular) {
 	'use strict';
 
@@ -321,7 +322,7 @@
 							winHeight = $window.innerHeight;
 
 						if (top + $window.pageYOffset - container.offsetHeight > 0 && top > winHeight / 2) {
-							if ($scope.forceDirection == null) || ($scope.forceDirection == top) {
+							if (($scope.forceDirection == null) || ($scope.forceDirection == 'top')) {
 								$scope.picker.addClass('top');
 							}
 						}
